@@ -1,0 +1,50 @@
+name: 内部設計書の自動更新
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'src/**/*.java'
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: 設計書を自動更新
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            このPRでJavaコードが変更されました。以下の手順で内部設計書を更新してください。
+
+            1. `gh pr diff` でPRの差分を確認する
+            2. `docs/design.md`（内部設計書）を読む
+            3. コードの変更内容に合わせて設計書を更新する:
+               - データモデルの変更（フィールド追加・削除・型変更）
+               - ステータス遷移ルールの変更
+               - API仕様の変更（エンドポイント・リクエスト・レスポンス）
+               - クラス構成の変更（新規クラス・役割変更）
+            4. 変更がある場合、設計書をコミットしてこのPRブランチにpushする
+
+            ルール:
+            - docs/design.md のフォーマットとスタイルを維持すること
+            - コードの変更に関係する箇所だけを更新すること
+            - 設計書に変更が不要な場合は何もしないこと
+            - コミットメッセージは「docs: 設計書を更新 - <変更内容の要約>」の形式にすること
+
+          claude_args: '--allowedTools "Bash(gh pr:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Read,Edit(docs/**),Glob,Grep"'
