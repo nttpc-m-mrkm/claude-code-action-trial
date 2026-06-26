@@ -24,7 +24,11 @@ public class TaskController {
      */
     @PostMapping
     public ResponseEntity<Task> createTask(@RequestBody CreateTaskRequest request) {
-        Task task = taskService.createTask(request.getTitle(), request.getDescription());
+        Task task = taskService.createTask(
+            request.getTitle(),
+            request.getDescription(),
+            request.getPriority()
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(task);
     }
 
