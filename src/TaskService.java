@@ -19,11 +19,12 @@ public class TaskService {
      * 新しいタスクを作成する。
      * ステータスは「未着手」で初期化される。
      */
-    public Task createTask(String title, String description) {
+    public Task createTask(String title, String description, Priority priority) {
         Task task = new Task();
         task.setTitle(title);
         task.setDescription(description);
         task.setStatus(TaskStatus.TODO);
+        task.setPriority(priority);
         return taskRepository.save(task);
     }
 
