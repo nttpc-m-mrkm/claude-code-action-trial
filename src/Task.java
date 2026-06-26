@@ -44,4 +44,12 @@ public class Task {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+
+    private LocalDateTime deadline;
+
+    public LocalDateTime getDeadline() { return deadline; }
+    public void setDeadline(LocalDateTime deadline) {
+        this.deadline = deadline;
+        this.updatedAt = LocalDateTime.now();
+    }
 }
