@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 /**
  * タスクエンティティ。
+ * git checkout -b test/github-actions
  */
 public class Task {
 
