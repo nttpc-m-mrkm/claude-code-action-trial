@@ -78,4 +78,13 @@ public class TaskService {
             case DONE -> false;
         };
     }
+
+    public Task createTaskWithDeadline(String title, String description, LocalDateTime deadline) {
+        Task task = new Task();
+        task.setTitle(title);
+        task.setDescription(description);
+        task.setStatus(TaskStatus.TODO);
+        task.setDeadline(deadline);
+        return taskRepository.save(task);
+    }
 }
