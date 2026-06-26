@@ -16,6 +16,7 @@
 | status | TaskStatus | タスクのステータス |
 | createdAt | LocalDateTime | 作成日時 |
 | updatedAt | LocalDateTime | 更新日時 |
+| priority | int | タスクの優先度 |
 
 ### TaskStatus（ステータス）
 
@@ -29,9 +30,7 @@
 
 ステータスは以下の一方向にのみ遷移可能。逆方向や飛ばしは不可。
 
-```
 TODO → IN_PROGRESS → DONE
-```
 
 不正な遷移を行おうとした場合は `InvalidStatusTransitionException` がスローされる。
 
@@ -39,7 +38,7 @@ TODO → IN_PROGRESS → DONE
 
 ### POST /api/tasks — タスク作成
 
-- リクエスト: `{ "title": "...", "description": "..." }`
+- リクエスト: `{ "title": "...", "description": "...", "priority": 1 }`
 - レスポンス: 201 Created + 作成されたTaskオブジェクト
 - ステータスは `TODO` で初期化される
 
