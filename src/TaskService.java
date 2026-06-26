@@ -78,4 +78,13 @@ public class TaskService {
             case DONE -> false;
         };
     }
+
+    public Task createTask(String title, String description, int priority) {
+        Task task = new Task();
+        task.setTitle(title);
+        task.setDescription(description);
+        task.setStatus(TaskStatus.TODO);
+        task.setPriority(priority);
+        return taskRepository.save(task);
+    }
 }
