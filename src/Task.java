@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 /**
  * タスクエンティティ。
+ * git checkout -b feature/add-priority
  */
 public class Task {
 
@@ -13,6 +14,7 @@ public class Task {
     private TaskStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private int priority;
 
     public Task() {
         this.createdAt = LocalDateTime.now();
@@ -44,4 +46,11 @@ public class Task {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+
+    public int getPriority() { return priority; }
+    public void setPriority(int priority) {
+        this.priority = priority;
+        this.updatedAt = LocalDateTime.now();
+    }
+    
 }
