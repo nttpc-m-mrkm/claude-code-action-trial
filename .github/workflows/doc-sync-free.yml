@@ -1,0 +1,82 @@
+name: 設計書の自動更新（GitHub Models）
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'src/**/*.java'
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
+      models: read
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: 設計書を自動更新
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # PRの差分を取得
+          DIFF=$(gh pr diff ${{ github.event.pull_request.number }})
+
+          # 現在の設計書を読み込み
+          DESIGN_DOC=$(cat docs/design.md)
+
+          # GitHub Models API に設計書の更新を依頼
+          RESPONSE=$(curl -s -X POST "https://models.inference.ai.azure.com/chat/completions" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg diff "$DIFF" \
+              --arg doc "$DESIGN_DOC" \
+              '{
+                "model": "gpt-4o-mini",
+                "messages": [
+                  {
+                    "role": "system",
+                    "content": "あなたは内部設計書を更新するアシスタントです。コードの差分を読み取り、既存の設計書を更新してください。設計書のフォーマットとスタイルを維持し、変更に関係する箇所だけを更新してください。更新後の設計書全文をMarkdownで出力してください。余計な説明は不要です。"
+                  },
+                  {
+                    "role": "user",
+                    "content": ("以下のコード差分に基づいて、設計書を更新してください。\n\n## コード差分\n\n" + $diff + "\n\n## 現在の設計書\n\n" + $doc)
+                  }
+                ],
+                "temperature": 0.1
+              }'
+            )")
+
+          # レスポンスから更新された設計書を抽出
+          UPDATED_DOC=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
+
+          if [ -z "$UPDATED_DOC" ]; then
+            echo "設計書の更新なし、またはAPIエラー"
+            echo "APIレスポンス: $RESPONSE"
+            exit 0
+          fi
+
+          # Markdownのコードブロックで囲まれている場合は除去
+          UPDATED_DOC=$(echo "$UPDATED_DOC" | sed '/^```markdown$/d' | sed '/^```$/d')
+
+          # 設計書を更新
+          echo "$UPDATED_DOC" > docs/design.md
+
+          # 差分があればコミット＆プッシュ
+          if git diff --quiet docs/design.md; then
+            echo "設計書に変更なし"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add docs/design.md
+            git commit -m "docs: 設計書を自動更新"
+            git push
+          fi
