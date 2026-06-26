@@ -16,6 +16,7 @@
 | status | TaskStatus | タスクのステータス |
 | createdAt | LocalDateTime | 作成日時 |
 | updatedAt | LocalDateTime | 更新日時 |
+| deadline | LocalDateTime | タスクの期限（任意項目） |
 
 ### TaskStatus（ステータス）
 
@@ -29,9 +30,7 @@
 
 ステータスは以下の一方向にのみ遷移可能。逆方向や飛ばしは不可。
 
-```
 TODO → IN_PROGRESS → DONE
-```
 
 不正な遷移を行おうとした場合は `InvalidStatusTransitionException` がスローされる。
 
@@ -39,7 +38,7 @@ TODO → IN_PROGRESS → DONE
 
 ### POST /api/tasks — タスク作成
 
-- リクエスト: `{ "title": "...", "description": "..." }`
+- リクエスト: `{ "title": "...", "description": "...", "deadline": "2023-10-01T12:00:00" }`（期限は任意項目）
 - レスポンス: 201 Created + 作成されたTaskオブジェクト
 - ステータスは `TODO` で初期化される
 
@@ -72,3 +71,9 @@ TODO → IN_PROGRESS → DONE
 | Task | エンティティ（データモデル） |
 | TaskStatus | ステータスのEnum定義 |
 | TaskRepository | データアクセス層（インターフェース） |
+
+## 6. 新しいメソッド
+
+### TaskService#createTaskWithDeadline
+
+タスクに期限を設定して作成するための専用メソッドを追加した。このメソッドは、タスクのタイトル、説明、期限を引数に取り、新しいタスクを作成してリポジトリに保存する。通常のタスク作成メソッド `createTask` には影響を与えず、期限付きタスクの作成を分離することで、既存の機能との整合性を保っている。
