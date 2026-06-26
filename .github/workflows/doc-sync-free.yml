@@ -22,61 +22,107 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: 設計書を自動更新
+      - name: 全ドキュメントを自動更新
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           # PRの差分を取得
-          DIFF=$(gh pr diff ${{ github.event.pull_request.number }})
+          DIFF=$(gh pr diff $PR_NUMBER)
 
-          # 現在の設計書を読み込み
-          DESIGN_DOC=$(cat docs/design.md)
+          # 更新対象のドキュメント一覧
+          DOC_FILES=(
+            "README.md"
+            "docs/design.md"
+            "docs/architecture.md"
+            "docs/screen-spec.md"
+            "docs/database.md"
+          )
 
-          # GitHub Models API に設計書の更新を依頼
-          RESPONSE=$(curl -s -X POST "https://models.inference.ai.azure.com/chat/completions" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n \
-              --arg diff "$DIFF" \
-              --arg doc "$DESIGN_DOC" \
-              '{
-                "model": "gpt-4o-mini",
-                "messages": [
-                  {
-                    "role": "system",
-                    "content": "あなたは内部設計書を更新するアシスタントです。コードの差分を読み取り、既存の設計書を更新してください。設計書のフォーマットとスタイルを維持し、変更に関係する箇所だけを更新してください。更新後の設計書全文をMarkdownで出力してください。余計な説明は不要です。"
-                  },
-                  {
-                    "role": "user",
-                    "content": ("以下のコード差分に基づいて、設計書を更新してください。\n\n## コード差分\n\n" + $diff + "\n\n## 現在の設計書\n\n" + $doc)
-                  }
-                ],
-                "temperature": 0.1
-              }'
-            )")
+          UPDATED_COUNT=0
+          UPDATED_FILES=""
 
-          # レスポンスから更新された設計書を抽出
-          UPDATED_DOC=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
+          for DOC_PATH in "${DOC_FILES[@]}"; do
+            echo "=========================================="
+            echo "処理中: $DOC_PATH"
+            echo "=========================================="
 
-          if [ -z "$UPDATED_DOC" ]; then
-            echo "設計書の更新なし、またはAPIエラー"
-            echo "APIレスポンス: $RESPONSE"
-            exit 0
-          fi
+            # ファイルが存在しない場合はスキップ
+            if [ ! -f "$DOC_PATH" ]; then
+              echo "ファイルが存在しません。スキップします。"
+              continue
+            fi
 
-          # Markdownのコードブロックで囲まれている場合は除去
-          UPDATED_DOC=$(echo "$UPDATED_DOC" | sed '/^```markdown$/d' | sed '/^```$/d')
+            # 現在のドキュメントを読み込み
+            CURRENT_DOC=$(cat "$DOC_PATH")
 
-          # 設計書を更新
-          echo "$UPDATED_DOC" > docs/design.md
+            # GitHub Models API にドキュメントの更新を依頼
+            RESPONSE=$(curl -s -X POST "https://models.inference.ai.azure.com/chat/completions" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n \
+                --arg diff "$DIFF" \
+                --arg doc "$CURRENT_DOC" \
+                --arg pr_title "$PR_TITLE" \
+                --arg pr_body "$PR_BODY" \
+                --arg doc_path "$DOC_PATH" \
+                '{
+                  "model": "gpt-4o-mini",
+                  "messages": [
+                    {
+                      "role": "system",
+                      "content": ("あなたはソフトウェアのドキュメントを保守するシニアエンジニアです。\nPRの情報（タイトル・説明・コード差分）を読み取り、渡されたドキュメントを更新してください。\n\n## 対象ドキュメント\n\n更新対象のファイル: " + $doc_path + "\n\nドキュメントの種類に応じて適切な更新を行ってください。\n- README.md → 機能一覧、API一覧、ディレクトリ構成など\n- docs/design.md → データモデル、API仕様、クラス構成など\n- docs/architecture.md → クラス図、シーケンス図、設計判断など\n- docs/screen-spec.md → 画面の表示項目、操作、入力項目など\n- docs/database.md → テーブル定義、カラム、DDLなど\n\n## 最重要ルール\n\nドキュメントは「人間が読んで設計を理解するための文書」です。\n単にコードの変更内容を機械的に列挙するのではなく、自然な日本語の文章で説明を書いてください。\n\n### 悪い例（機械的な列挙）\n> priorityフィールドを追加した。型はPriorityである。\n\n### 良い例（設計意図が伝わる文章）\n> タスクに優先度（priority）の概念を導入した。優先度はLOW・MEDIUM・HIGHの3段階とし、タスク作成時に指定する。優先度によるタスクの並び替えやフィルタリングの基盤となる。\n\n## 更新のルール\n\n1. ドキュメントの既存のフォーマット・構成・文体を維持すること\n2. コード変更に関係する箇所だけを更新すること（無関係な箇所は一切変えない）\n3. PRのタイトルと説明文から変更の目的・背景を読み取り、反映すること\n4. 新しいクラスやメソッドが追加された場合は、その役割と既存機能との関係を説明すること\n5. テーブルは既存の形式に合わせて行を追加・修正すること\n6. Mermaid図（クラス図・シーケンス図）がある場合は、変更に応じて図も更新すること\n7. このコード変更がこのドキュメントに無関係な場合は、現在のドキュメントをそのまま返すこと\n\n## 出力形式\n\n- 更新後のドキュメント全文をMarkdownで出力してください\n- 余計な説明や前置き（「以下が更新後です」等）は不要です\n- Markdownのコードブロック（```markdown）で囲まないでください")
+                    },
+                    {
+                      "role": "user",
+                      "content": ("## PRタイトル\n\n" + $pr_title + "\n\n## PR説明文\n\n" + $pr_body + "\n\n## コード差分\n\n" + $diff + "\n\n## 現在のドキュメント（" + $doc_path + "）\n\n" + $doc)
+                    }
+                  ],
+                  "temperature": 0.3
+                }'
+              )")
 
-          # 差分があればコミット＆プッシュ
-          if git diff --quiet docs/design.md; then
-            echo "設計書に変更なし"
-          else
+            # レスポンスからドキュメントを抽出
+            UPDATED_DOC=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
+
+            if [ -z "$UPDATED_DOC" ]; then
+              echo "更新なし、またはAPIエラー"
+              echo "APIレスポンス: $RESPONSE"
+              continue
+            fi
+
+            # Markdownのコードブロックで囲まれている場合は除去
+            UPDATED_DOC=$(echo "$UPDATED_DOC" | sed '/^```markdown$/d' | sed '/^```$/d')
+
+            # ドキュメントを上書き
+            echo "$UPDATED_DOC" > "$DOC_PATH"
+
+            # 差分があるか確認
+            if git diff --quiet "$DOC_PATH"; then
+              echo "$DOC_PATH: 変更なし"
+            else
+              echo "$DOC_PATH: 更新あり！"
+              UPDATED_COUNT=$((UPDATED_COUNT + 1))
+              UPDATED_FILES="$UPDATED_FILES $DOC_PATH"
+            fi
+
+            # レートリミット対策で少し待つ
+            sleep 2
+          done
+
+          echo "=========================================="
+          echo "更新されたドキュメント数: $UPDATED_COUNT"
+          echo "=========================================="
+
+          # 差分があればまとめてコミット＆プッシュ
+          if [ $UPDATED_COUNT -gt 0 ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add docs/design.md
-            git commit -m "docs: 設計書を自動更新"
+            git add $UPDATED_FILES
+            git commit -m "docs: ドキュメントを自動更新（${UPDATED_COUNT}ファイル）"
             git push
+          else
+            echo "全ドキュメントに変更なし"
           fi
