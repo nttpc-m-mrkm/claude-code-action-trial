@@ -16,6 +16,7 @@
 | status | TaskStatus | タスクのステータス |
 | createdAt | LocalDateTime | 作成日時 |
 | updatedAt | LocalDateTime | 更新日時 |
+| priority | Priority | タスクの優先度 |
 
 ### TaskStatus（ステータス）
 
@@ -25,13 +26,19 @@
 | IN_PROGRESS | 作業中 |
 | DONE | 完了 |
 
+### Priority（優先度）
+
+| 値 | 意味 |
+|---|---|
+| LOW | 低 |
+| MEDIUM | 中 |
+| HIGH | 高 |
+
 ## 3. ステータス遷移ルール
 
 ステータスは以下の一方向にのみ遷移可能。逆方向や飛ばしは不可。
 
-```
 TODO → IN_PROGRESS → DONE
-```
 
 不正な遷移を行おうとした場合は `InvalidStatusTransitionException` がスローされる。
 
@@ -39,7 +46,7 @@ TODO → IN_PROGRESS → DONE
 
 ### POST /api/tasks — タスク作成
 
-- リクエスト: `{ "title": "...", "description": "..." }`
+- リクエスト: `{ "title": "...", "description": "...", "priority": "LOW" }`
 - レスポンス: 201 Created + 作成されたTaskオブジェクト
 - ステータスは `TODO` で初期化される
 
@@ -71,4 +78,5 @@ TODO → IN_PROGRESS → DONE
 | TaskService | ビジネスロジック（ステータス遷移の検証等） |
 | Task | エンティティ（データモデル） |
 | TaskStatus | ステータスのEnum定義 |
+| Priority | タスクの優先度を定義するEnum |
 | TaskRepository | データアクセス層（インターフェース） |

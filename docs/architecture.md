@@ -4,7 +4,6 @@
 
 本アプリケーションはSpring Bootをベースとした3層アーキテクチャを採用している。
 
-```
 ┌──────────────┐
 │   クライアント   │  ブラウザ / APIクライアント
 └──────┬───────┘
@@ -20,7 +19,6 @@
 ┌──────▼───────┐
 │  Repository層  │  TaskRepository — データの永続化（H2 Database）
 └──────────────┘
-```
 
 各層は上から下への一方向の依存関係を持ち、下位層が上位層に依存することはない。
 
@@ -35,6 +33,7 @@ classDiagram
         -TaskStatus status
         -LocalDateTime createdAt
         -LocalDateTime updatedAt
+        -Priority priority
         +getId() Long
         +getTitle() String
         +setTitle(String)
@@ -44,6 +43,8 @@ classDiagram
         +setStatus(TaskStatus)
         +getCreatedAt() LocalDateTime
         +getUpdatedAt() LocalDateTime
+        +getPriority() Priority
+        +setPriority(Priority)
     }
 
     class TaskStatus {
@@ -53,9 +54,16 @@ classDiagram
         DONE
     }
 
+    class Priority {
+        <<enumeration>>
+        LOW
+        MEDIUM
+        HIGH
+    }
+
     class TaskService {
         -TaskRepository taskRepository
-        +createTask(String, String) Task
+        +createTask(String, String, Priority) Task
         +getTask(Long) Optional~Task~
         +getAllTasks() List~Task~
         +updateStatus(Long, TaskStatus) Task
@@ -82,10 +90,10 @@ classDiagram
     }
 
     Task --> TaskStatus
+    Task --> Priority
     TaskService --> TaskRepository
     TaskService --> Task
     TaskController --> TaskService
-```
 
 ## 3. シーケンス図
 
@@ -98,15 +106,15 @@ sequenceDiagram
     participant S as TaskService
     participant R as TaskRepository
 
-    Client->>C: POST /api/tasks {title, description}
-    C->>S: createTask(title, description)
+    Client->>C: POST /api/tasks {title, description, priority}
+    C->>S: createTask(title, description, priority)
     S->>S: new Task()
     S->>S: task.setStatus(TODO)
+    S->>S: task.setPriority(priority)
     S->>R: save(task)
     R-->>S: 保存されたTask（IDが採番済み）
     S-->>C: Task
     C-->>Client: 201 Created + Task
-```
 
 ### ステータス更新の流れ
 
@@ -132,7 +140,6 @@ sequenceDiagram
         S-->>C: InvalidStatusTransitionException
         C-->>Client: 400 Bad Request
     end
-```
 
 ## 4. エラーハンドリング方針
 
@@ -150,3 +157,4 @@ sequenceDiagram
 - **ステータス遷移の検証をService層に集約**: Controller層ではステータス値の受け渡しのみ行い、遷移ルールの判定はServiceに任せる。これにより、バッチ処理や別のエントリーポイントからタスクを操作する場合も同じルールが適用される。
 - **updatedAtの自動更新**: Setter内でupdatedAtを更新する方式を採用。フィールドの変更漏れを防ぐ反面、単純な参照時にもSetterが呼ばれないよう注意が必要。
 - **Repositoryのインターフェース化**: 現在はH2 Databaseを使用しているが、Repository層をインターフェースとして定義することで、将来的にPostgreSQL等への切り替えを容易にしている。
+- **タスクの優先度の導入**: タスクにLOW・MEDIUM・HIGHの3段階の優先度を追加した。これにより、タスク作成時に優先度を指定でき、タスクの管理や表示において優先度に基づくフィルタリングやソートが可能となる。
